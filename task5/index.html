@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Задание 5: Three.js WebAR — Управление объектом, HDRI, PBR и Модули</title>
+  <link rel="stylesheet" href="./css/style.css">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <!-- WebGL рендерер Three.js -->
+  <div id="webgl-canvas-container"></div>
+
+  <!-- Корневой DOM-Overlay для WebXR сессии -->
+  <div id="ar-ui-root">
+    
+    <!-- Верхняя статусная карточка -->
+    <div class="top-card">
+      <h1>Задание 5: Управление 3D-моделью (WebAR)</h1>
+      <div class="status-row" id="status-row">
+        <span class="status-dot"></span>
+        <span id="status-text">Ожидание запуска AR...</span>
+      </div>
+      <div class="hdri-badge" id="hdri-badge">HDRI: Загрузка окружения...</div>
+    </div>
+
+    <!-- Нижняя панель управления -->
+    <div class="bottom-panel" id="bottom-panel">
+      
+      <!-- Строка 1: Выбор модели и кнопки масштаба -->
+      <div class="panel-row">
+        <span class="row-label">Модель:</span>
+        <select id="model-select" class="model-select">
+          <option value="drone" selected>DJI FPV Дрон</option>
+          <option value="mask">Японская маска</option>
+        </select>
+        <button class="btn" id="btn-scale-down" style="flex: 0 0 32px;" title="Уменьшить">-</button>
+        <button class="btn active" id="btn-scale-reset" style="flex: 0 0 52px;" title="Сбросить масштаб">100%</button>
+        <button class="btn" id="btn-scale-up" style="flex: 0 0 32px;" title="Увеличить">+</button>
+      </div>
+
+      <!-- Строка 2: Вращение -->
+      <div class="panel-row">
+        <span class="row-label">Поворот:</span>
+        <button class="btn" id="btn-rot-left">⟲ -30°</button>
+        <button class="btn" id="btn-rot-right">⟳ +30°</button>
+        <button class="btn" id="btn-rot-auto">Авто: Выкл</button>
+      </div>
+
+      <!-- Строка 3: Цвет и кнопка очистки -->
+      <div class="panel-row">
+        <span class="row-label">Цвет PBR:</span>
+        <div class="color-group">
+          <div class="color-btn selected" data-color="" title="Исходный" style="background: linear-gradient(135deg, #71717a, #3f3f46);"></div>
+          <div class="color-btn" data-color="#00b4d8" title="Синий" style="background: #00b4d8;"></div>
+          <div class="color-btn" data-color="#ef4444" title="Красный" style="background: #ef4444;"></div>
+          <div class="color-btn" data-color="#10b981" title="Зеленый" style="background: #10b981;"></div>
+          <div class="color-btn" data-color="#f59e0b" title="Желтый" style="background: #f59e0b;"></div>
+        </div>
+        <button class="btn btn-danger" id="btn-clear" style="display: none;">Очистить</button>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Модальное окно при отсутствии аппаратной поддержки WebXR -->
+  <div class="modal-no-xr" id="modal-no-xr">
+    <div class="modal-box">
+      <h2>WebXR AR не поддерживается</h2>
+      <p>Для запуска сценария дополненной реальности требуется смартфон на <b>Android</b> с браузером <b>Google Chrome</b> и установленными службами Google Play для AR (ARCore).</p>
+      <p>Для отладки на ПК используйте расширение для Google Chrome <b>WebXR API Emulator</b>.</p>
+      <button class="btn active" onclick="document.getElementById('modal-no-xr').classList.remove('show')">Понятно</button>
+    </div>
+  </div>
+
+  <script type="module" src="./js/App.js"></script>
+</body>
+</html>

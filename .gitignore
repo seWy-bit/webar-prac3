@@ -1,0 +1,5 @@
+# Игнорировать тяжелый проект Unity и временные файлы
+unity_project/
+*.zip
+.DS_Store
+Thumbs.db
