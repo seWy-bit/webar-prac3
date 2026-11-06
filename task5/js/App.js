@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
-import { LightingManager } from './LightingManager.js';
-import { ModelManager } from './ModelManager.js';
-import { UIManager } from './UIManager.js';
+import { LightingManager } from './LightingManager.js?v=3';
+import { ModelManager } from './ModelManager.js?v=3';
+import { UIManager } from './UIManager.js?v=3';
 
 /**
  * App — главный класс приложения WebAR.
@@ -54,7 +54,7 @@ export class App {
     // 5. Кнопка запуска AR
     this.initARButton();
 
-    // 6. Создание аккуратного компактного прицела (Reticle)
+    // 6. Аккуратный компактный прицел (Reticle)
     this.initReticle();
 
     // 7. Контроллер взаимодействия (обработка тапа по экрану)
@@ -88,7 +88,7 @@ export class App {
   }
 
   initReticle() {
-    // Компактное аккуратное кольцо (диаметр ~19 см, толщина 1.5 см)
+    // Компактное аккуратное кольцо (диаметр ~18 см, толщина 1.5 см)
     const ringGeo = new THREE.RingGeometry(0.08, 0.095, 32).rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x10b981, // Мягкий изумрудно-зеленый

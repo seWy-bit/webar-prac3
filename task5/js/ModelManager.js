@@ -2,34 +2,30 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /**
- * ModelManager — модуль управления 3D-моделями.
- * Отвечает за:
- * - Загрузку glTF/GLB файлов и PBR-материалов.
- * - Очистку от сторонних мешей (мусорные колеса в glb).
- * - Нормализацию масштаба и центрирование точки опоры (шасси/подошва на Y=0).
- * - Размещение объектов по координатам Hit-Test.
- * - Смену активной модели в реальном времени.
- * - Поворот и авто-вращение.
- * - Изменение PBR-цвета через .material.color.set(...).
- * - Масштабирование объектов.
+ * ModelManager — модуль управления 3D-моделями с прямым фиксированным масштабированием.
+ * Без сложных алгоритмов распознавания габаритов — прямой проверенный масштаб в метрах.
  */
 export class ModelManager {
   constructor(scene) {
     this.scene = scene;
     this.loader = new GLTFLoader();
 
-    // Загруженные шаблоны моделей
+    // Загруженные шаблоны моделей с прямыми фиксированными коэффициентами
     this.models = {
       drone: {
         name: 'DJI FPV Дрон',
-        url: './assets/drone.glb',
-        baseScale: 0.08, // Будет автоматически скорректирован до ~55 см
+        url: './assets/drone.glb?v=3',
+        baseScale: 0.10, // Прямой масштаб: размах ~73 см (в 150 раз больше прежнего!)
+        offsetX: -0.07,  // Точная центровка
+        offsetY: 0.20,   // Шасси стоят точно на плоскости пола
         pivot: null
       },
       mask: {
         name: 'Японская маска',
-        url: './assets/mask.glb',
-        baseScale: 0.35, // Размер маски ~70 см (откалиброван)
+        url: './assets/mask.glb?v=3',
+        baseScale: 0.35, // Фиксированный масштаб ~70 см
+        offsetX: 0,
+        offsetY: 0.35,
         pivot: null
       }
     };
@@ -44,7 +40,7 @@ export class ModelManager {
   }
 
   /**
-   * Предзагрузка моделей и подготовка их опорных точек (pivot)
+   * Предзагрузка моделей с прямой установкой смещения
    */
   initPreload() {
     Object.keys(this.models).forEach((key) => {
@@ -55,47 +51,10 @@ export class ModelManager {
         (gltf) => {
           const root = gltf.scene;
 
-          if (key === 'drone') {
-            // Удаляем мусорные меши (колеса автомобиля, оставшиеся в glb на координатах > 500)
-            const junkMeshes = [];
-            root.traverse((child) => {
-              if (child.isMesh) {
-                if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
-                const b = child.geometry.boundingBox;
-                const maxDim = Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z);
-                if (maxDim > 50 || child.name.toLowerCase().includes('pneu')) {
-                  junkMeshes.push(child);
-                }
-              }
-            });
-            junkMeshes.forEach((m) => {
-              if (m.parent) m.parent.remove(m);
-            });
-
-            // Расчет реальных габаритов самого дрона
-            const box = new THREE.Box3().setFromObject(root);
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3());
-
-            // Центрируем дрон: ножки строго на Y = 0, центр по X и Z
-            root.position.x = -center.x;
-            root.position.z = -center.z;
-            root.position.y = -box.min.y;
-
-            // Базовый масштаб: размах винтов реального DJI FPV ~55 см (0.55 м)
-            item.baseScale = size.x > 0 ? (0.55 / size.x) : 0.08;
-            console.log(`[ModelManager] Дрон откалиброван: размер ${size.x.toFixed(2)} -> baseScale: ${item.baseScale.toFixed(4)}`);
-          } else {
-            // Для маски
-            const box = new THREE.Box3().setFromObject(root);
-            const center = box.getCenter(new THREE.Vector3());
-
-            root.position.x = -center.x;
-            root.position.z = -center.z;
-            root.position.y = -box.min.y;
-
-            item.baseScale = 0.35; // Комфортный размер маски ~70 см
-          }
+          // Прямое позиционирование модели
+          root.position.x = item.offsetX;
+          root.position.y = item.offsetY;
+          root.position.z = 0;
 
           // Сохраняем исходные PBR-цвета материалов
           root.traverse((child) => {
@@ -112,12 +71,12 @@ export class ModelManager {
             }
           });
 
-          // Создаем контейнер-опору (pivot)
+          // Оборачиваем в контейнер-опору (pivot)
           const pivot = new THREE.Group();
           pivot.add(root);
           item.pivot = pivot;
 
-          console.log(`[ModelManager] Модель ${item.name} успешно готова`);
+          console.log(`[ModelManager] ${item.name} готова. Фиксированный масштаб: ${item.baseScale}`);
         },
         undefined,
         (err) => console.error(`[ModelManager] Ошибка загрузки ${item.url}:`, err)
@@ -143,12 +102,12 @@ export class ModelManager {
     const dummyScale = new THREE.Vector3();
     matrix.decompose(group.position, group.quaternion, dummyScale);
 
-    // Задаем выверенный масштаб
+    // Прямой выверенный масштаб без вычислений
     const s = item.baseScale * this.scaleMultiplier;
     group.scale.set(s, s, s);
     group.userData.modelKey = this.activeModelKey;
 
-    // Применяем выбранный PBR-цвет, если он задан
+    // Применяем выбранный PBR-цвет, если задан
     if (this.currentColor) {
       this.applyColorToGroup(group, this.currentColor);
     }
@@ -156,36 +115,30 @@ export class ModelManager {
     this.scene.add(group);
     this.placedObjects.push(group);
 
-    console.log(`[ModelManager] Объект ${item.name} размещен (всего: ${this.placedObjects.length}), scale: ${s.toFixed(4)}`);
+    console.log(`[ModelManager] Объект ${item.name} размещен со scale: ${s}`);
     return group;
   }
 
   /**
-   * Переключение активной модели в реальном времени
+   * Переключение активной модели
    */
   setActiveModel(key) {
     if (!this.models[key]) return;
     this.activeModelKey = key;
 
-    // Если на полу уже есть объекты, заменяем их на выбранную модель
     this.placedObjects.forEach((group) => {
       this.replaceModelInGroup(group, key);
     });
   }
 
-  /**
-   * Замена модели внутри существующего контейнера с сохранением координат
-   */
   replaceModelInGroup(group, key) {
     const item = this.models[key];
     if (!item.pivot) return;
 
-    // Удаляем предыдущую модель из группы
     while (group.children.length > 0) {
       group.remove(group.children[0]);
     }
 
-    // Вставляем новую модель
     const newClone = item.pivot.clone(true);
     group.add(newClone);
 
@@ -223,18 +176,12 @@ export class ModelManager {
     });
   }
 
-  /**
-   * Поворот объектов на заданный угол
-   */
   rotate(deltaRad) {
     this.placedObjects.forEach((group) => {
       group.rotation.y += deltaRad;
     });
   }
 
-  /**
-   * Переключение авто-вращения
-   */
   toggleAutoRotate() {
     this.autoRotateEnabled = !this.autoRotateEnabled;
     return this.autoRotateEnabled;
@@ -248,9 +195,6 @@ export class ModelManager {
     }
   }
 
-  /**
-   * Регулировка масштаба
-   */
   scaleUp() {
     this.scaleMultiplier = Math.min(3.0, this.scaleMultiplier + 0.2);
     this.updatePlacedScales();
@@ -280,9 +224,6 @@ export class ModelManager {
     });
   }
 
-  /**
-   * Очистить размещенные объекты
-   */
   clearAll() {
     this.placedObjects.forEach((group) => {
       this.scene.remove(group);
