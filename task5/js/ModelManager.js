@@ -5,11 +5,12 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
  * ModelManager — модуль управления 3D-моделями.
  * Отвечает за:
  * - Загрузку glTF/GLB файлов и PBR-материалов.
- * - Нормализацию масштаба и центрирование точки опоры (pivot).
+ * - Очистку от сторонних мешей (мусорные колеса в glb).
+ * - Нормализацию масштаба и центрирование точки опоры (шасси/подошва на Y=0).
  * - Размещение объектов по координатам Hit-Test.
  * - Смену активной модели в реальном времени.
- * - Поворот (пошаговый и плавный авто-поворот).
- * - Изменение PBR-цвета через material.color.set(...).
+ * - Поворот и авто-вращение.
+ * - Изменение PBR-цвета через .material.color.set(...).
  * - Масштабирование объектов.
  */
 export class ModelManager {
@@ -22,13 +23,13 @@ export class ModelManager {
       drone: {
         name: 'DJI FPV Дрон',
         url: './assets/drone.glb',
-        baseScale: 0.0006, // Масштабирование ~1.0 м в размахе
+        baseScale: 0.08, // Будет автоматически скорректирован до ~55 см
         pivot: null
       },
       mask: {
         name: 'Японская маска',
         url: './assets/mask.glb',
-        baseScale: 0.35,   // Высота ~0.7 м
+        baseScale: 0.35, // Размер маски ~70 см (откалиброван)
         pivot: null
       }
     };
@@ -43,7 +44,7 @@ export class ModelManager {
   }
 
   /**
-   * Предзагрузка моделей и подготовка их опорных точек
+   * Предзагрузка моделей и подготовка их опорных точек (pivot)
    */
   initPreload() {
     Object.keys(this.models).forEach((key) => {
@@ -54,16 +55,49 @@ export class ModelManager {
         (gltf) => {
           const root = gltf.scene;
 
-          // Расчет Bounding Box для центрирования на полу
-          const box = new THREE.Box3().setFromObject(root);
-          const center = box.getCenter(new THREE.Vector3());
+          if (key === 'drone') {
+            // Удаляем мусорные меши (колеса автомобиля, оставшиеся в glb на координатах > 500)
+            const junkMeshes = [];
+            root.traverse((child) => {
+              if (child.isMesh) {
+                if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+                const b = child.geometry.boundingBox;
+                const maxDim = Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z);
+                if (maxDim > 50 || child.name.toLowerCase().includes('pneu')) {
+                  junkMeshes.push(child);
+                }
+              }
+            });
+            junkMeshes.forEach((m) => {
+              if (m.parent) m.parent.remove(m);
+            });
 
-          // Смещаем саму модель так, чтобы точка привязки была строго по центру снизу
-          root.position.x = -center.x;
-          root.position.z = -center.z;
-          root.position.y = -box.min.y;
+            // Расчет реальных габаритов самого дрона
+            const box = new THREE.Box3().setFromObject(root);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
 
-          // Сохраняем исходные цвета материалов для возможности возврата к оригиналу
+            // Центрируем дрон: ножки строго на Y = 0, центр по X и Z
+            root.position.x = -center.x;
+            root.position.z = -center.z;
+            root.position.y = -box.min.y;
+
+            // Базовый масштаб: размах винтов реального DJI FPV ~55 см (0.55 м)
+            item.baseScale = size.x > 0 ? (0.55 / size.x) : 0.08;
+            console.log(`[ModelManager] Дрон откалиброван: размер ${size.x.toFixed(2)} -> baseScale: ${item.baseScale.toFixed(4)}`);
+          } else {
+            // Для маски
+            const box = new THREE.Box3().setFromObject(root);
+            const center = box.getCenter(new THREE.Vector3());
+
+            root.position.x = -center.x;
+            root.position.z = -center.z;
+            root.position.y = -box.min.y;
+
+            item.baseScale = 0.35; // Комфортный размер маски ~70 см
+          }
+
+          // Сохраняем исходные PBR-цвета материалов
           root.traverse((child) => {
             if (child.isMesh && child.material) {
               child.castShadow = true;
@@ -83,7 +117,7 @@ export class ModelManager {
           pivot.add(root);
           item.pivot = pivot;
 
-          console.log(`[ModelManager] Модель ${item.name} успешно загружена и готова`);
+          console.log(`[ModelManager] Модель ${item.name} успешно готова`);
         },
         undefined,
         (err) => console.error(`[ModelManager] Ошибка загрузки ${item.url}:`, err)
@@ -122,12 +156,12 @@ export class ModelManager {
     this.scene.add(group);
     this.placedObjects.push(group);
 
-    console.log(`[ModelManager] Объект ${item.name} размещен (всего: ${this.placedObjects.length})`);
+    console.log(`[ModelManager] Объект ${item.name} размещен (всего: ${this.placedObjects.length}), scale: ${s.toFixed(4)}`);
     return group;
   }
 
   /**
-   * Переключение активной модели
+   * Переключение активной модели в реальном времени
    */
   setActiveModel(key) {
     if (!this.models[key]) return;
@@ -140,7 +174,7 @@ export class ModelManager {
   }
 
   /**
-   * Замена модели внутри существующего контейнера с сохранением позиции
+   * Замена модели внутри существующего контейнера с сохранением координат
    */
   replaceModelInGroup(group, key) {
     const item = this.models[key];
@@ -190,7 +224,7 @@ export class ModelManager {
   }
 
   /**
-   * Поворот объектов на заданный угол (в радианах)
+   * Поворот объектов на заданный угол
    */
   rotate(deltaRad) {
     this.placedObjects.forEach((group) => {
@@ -206,9 +240,6 @@ export class ModelManager {
     return this.autoRotateEnabled;
   }
 
-  /**
-   * Обновление покадровой анимации (вызывается в animation loop)
-   */
   update(delta) {
     if (this.autoRotateEnabled) {
       this.placedObjects.forEach((group) => {
@@ -218,16 +249,16 @@ export class ModelManager {
   }
 
   /**
-   * Управление масштабом
+   * Регулировка масштаба
    */
   scaleUp() {
-    this.scaleMultiplier = Math.min(2.5, this.scaleMultiplier + 0.2);
+    this.scaleMultiplier = Math.min(3.0, this.scaleMultiplier + 0.2);
     this.updatePlacedScales();
     return this.scaleMultiplier;
   }
 
   scaleDown() {
-    this.scaleMultiplier = Math.max(0.4, this.scaleMultiplier - 0.2);
+    this.scaleMultiplier = Math.max(0.3, this.scaleMultiplier - 0.2);
     this.updatePlacedScales();
     return this.scaleMultiplier;
   }
@@ -250,7 +281,7 @@ export class ModelManager {
   }
 
   /**
-   * Очистить все размещенные объекты со сцены
+   * Очистить размещенные объекты
    */
   clearAll() {
     this.placedObjects.forEach((group) => {

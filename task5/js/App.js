@@ -54,7 +54,7 @@ export class App {
     // 5. Кнопка запуска AR
     this.initARButton();
 
-    // 6. Создание четкого, контрастного прицела (Reticle)
+    // 6. Создание аккуратного компактного прицела (Reticle)
     this.initReticle();
 
     // 7. Контроллер взаимодействия (обработка тапа по экрану)
@@ -74,7 +74,6 @@ export class App {
       domOverlay: { root: this.uiRoot }
     });
 
-    // Аккуратная кнопка по центру внизу
     arButton.style.bottom = '16px';
     arButton.style.padding = '12px 28px';
     arButton.style.background = '#2563eb';
@@ -89,18 +88,18 @@ export class App {
   }
 
   initReticle() {
-    // Внешнее широкое кольцо (диаметр 50 см, толщина 7 см) — отлично заметно на любом полу
-    const ringGeo = new THREE.RingGeometry(0.18, 0.25, 32).rotateX(-Math.PI / 2);
+    // Компактное аккуратное кольцо (диаметр ~19 см, толщина 1.5 см)
+    const ringGeo = new THREE.RingGeometry(0.08, 0.095, 32).rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00ff88,
+      color: 0x10b981, // Мягкий изумрудно-зеленый
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.95
+      opacity: 0.85
     });
     this.reticle = new THREE.Mesh(ringGeo, ringMat);
 
-    // Внутренняя маркерная точка (диаметр 8 см)
-    const dotGeo = new THREE.CircleGeometry(0.04, 24).rotateX(-Math.PI / 2);
+    // Внутренняя маркерная точка (диаметр 3 см)
+    const dotGeo = new THREE.CircleGeometry(0.015, 24).rotateX(-Math.PI / 2);
     const dotMat = new THREE.MeshBasicMaterial({
       color: 0x00d2ff,
       side: THREE.DoubleSide
@@ -121,7 +120,6 @@ export class App {
   }
 
   onSelect() {
-    // Размещение происходит только при подтвержденной плоскости
     if (this.reticle.visible) {
       const placed = this.modelManager.placeAtPose(this.reticle.matrix);
       if (placed) {
